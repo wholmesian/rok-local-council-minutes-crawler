@@ -41,8 +41,8 @@ def download_html(session, uid, retries=3):
     return status, text
 
 def main():
-    data_dir = Path("data")
-    data_dir.mkdir(exist_ok=True)
+    data_dir = Path(__file__).resolve().parent.parent / "minutes-archive" / "daejeon-daedeok"
+    data_dir.mkdir(parents=True, exist_ok=True)
     
     cl_cd = "CO" # 대덕구 의회
     
