@@ -27,6 +27,12 @@ def main():
     
     session = requests.Session()
     session.headers.update(HEADERS)
+
+    # 사이트가 CSRF 토큰 없이는 403을 반환하므로, 목록 페이지에서 토큰을 받아 헤더에 설정
+    page = session.get(f"{BASE_URL}/kr/minutes/session.do")
+    m = re.search(r'name="_csrf"\s+content="([^"]+)"', page.text) or re.search(r'content="([^"]+)"\s+name="_csrf"', page.text)
+    if m:
+        session.headers["X-CSRF-TOKEN"] = m.group(1)
     
     print("Fetching 'th' list (대수)...")
     try:
