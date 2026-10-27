@@ -19,6 +19,27 @@ def clean_title(title):
     text = re.sub(r'\s+', ' ', text)
     return text
 
+def check_html(text):
+    """수집된 HTML 상태 판별: 'ok' / 'error'(404 등 오류 페이지) / 'temporary'(임시회의록)"""
+    if "id='minutes'" not in text:
+        return "error"
+    if "임시회의록으로서" in text or "temporary-minutes" in text:
+        return "temporary"
+    return "ok"
+
+def download_html(session, uid, retries=3):
+    """정상 HTML을 받을 때까지 재시도. (status, text) 반환"""
+    status, text = "error", ""
+    for _ in range(retries):
+        res = session.get(f"{BASE_URL}/viewer/minutes.do?uid={uid}", headers={"Referer": BASE_URL})
+        res.encoding = "utf-8"
+        text = res.text
+        status = check_html(text)
+        if status != "error":
+            break
+        time.sleep(1)
+    return status, text
+
 def main():
     data_dir = Path("data")
     data_dir.mkdir(exist_ok=True)
@@ -106,14 +127,22 @@ def main():
                     meeting_file = cmt_dir / f"{min_title}.html"
                     
                     if meeting_file.exists():
-                        print(f"      Already exists: {meeting_file.name}")
-                        continue
-                        
-                    print(f"      Downloading HTML for uid={uid}")
+                        old_status = check_html(meeting_file.read_text(encoding="utf-8", errors="replace"))
+                        if old_status == "ok":
+                            print(f"      Already exists: {meeting_file.name}")
+                            continue
+                        print(f"      Re-downloading ({old_status}): uid={uid}")
+                    else:
+                        print(f"      Downloading HTML for uid={uid}")
                     try:
-                        res_html = session.get(f"{BASE_URL}/viewer/minutes.do?uid={uid}", headers={"Referer": BASE_URL})
+                        status, text = download_html(session, uid)
+                        if status == "error":
+                            print(f"      FAILED (error page): uid={uid}")
+                            continue
+                        if status == "temporary":
+                            print(f"      Note: still temporary minutes: uid={uid}")
                         with open(meeting_file, "w", encoding="utf-8") as f:
-                            f.write(res_html.text)
+                            f.write(text)
                     except Exception as e:
                         print(f"Error downloading {uid}: {e}")
                         
